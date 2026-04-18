@@ -35,6 +35,16 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Checkpoints (regeneratable, ~214MB total)
+*.npy
+docs/*_ckpt/
+catboost_info/
+
+# Temporary analysis outputs
+eda_outputs/
+project_ratio_convergence.md
+layout_info_analysis_report.md
+
 # Misc
 *.log
 .env

@@ -1,0 +1,5 @@
+name,desc,n_features,oof_mae,delta
+Exp0_Baseline,TS0 없음 (기존 파이프라인),172,8.96673494489279,
+Exp1_TS0_Continuous,"+ TS0 연속형 8종 broadcast (robot_util, order_inflow 등)",180,8.95501553051443,-0.011719414378360327
+Exp2_TS0_Cont+Flags,+ TS0 이진 플래그 3종 (blocked/fault/recovery > 0),183,8.953552697819266,-0.013182247073524778
+Exp3_TS0_Full,+ TS0 복합 취약성 지수 (robot_util × order_inflow),184,8.952877307346156,-0.013857637546633939
