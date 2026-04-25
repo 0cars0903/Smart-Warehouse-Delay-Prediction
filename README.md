@@ -1,267 +1,306 @@
-# Dacon 스마트 창고 출고 지연 예측 AI 경진대회
+# 스마트 창고 출고 지연 예측 AI 경진대회
 
-> AMR 기반 스마트 물류창고 운영 데이터를 활용한 출고 지연 시간 예측
+> AMR 기반 스마트 물류창고 운영 데이터를 활용한 출고 지연 시간 예측  
+> [Dacon 공식 대회 페이지](https://dacon.io/competitions/official/236696/overview/description) | 기간: 2026.04.01 ~ 2026.05.04
 
-## Competition Info
+---
 
-| 항목 | 내용 |
+## 최종 결과
+
+| 지표 | 값 |
 |---|---|
-| **대회** | [스마트 창고 출고 지연 예측 AI 경진대회](https://dacon.io/competitions/official/236696/overview/description) |
-| **유형** | 알고리즘 · 정형 · 회귀 |
-| **평가지표** | MAE (Mean Absolute Error) |
-| **기간** | 2026.04.01 ~ 2026.05.04 |
-| **주최/주관** | 데이콘 |
+| **Public LB (최고)** | **9.8073** |
+| **1위 점수** | 9.6992 |
+| **1위 대비 갭** | 0.108 |
+| **평가 지표** | MAE (Mean Absolute Error) |
+| **총 실험 횟수** | 57회 이상 (제출 기준) / 80회+ (CV 전용 포함) |
+| **총 실험 기간** | 34일 |
 
-## Problem
+---
+
+## 핵심 발견 (Key Findings)
+
+### 1. 시나리오 간 분산이 전체의 63.4% → sc_agg가 핵심 돌파구
+v1 시리즈에서 row 단위 lag/rolling 피처로 한계(Public ~10.22)에 도달한 후, 시나리오 레벨 분산 분석을 통해 전체 분산의 63.4%가 시나리오 간 차이에서 비롯됨을 발견. 시나리오 25행 전체의 mean/std/max/min/diff를 각 행에 broadcast하는 방식으로 전환하자 Public 10.22 → 9.95로 단번에 돌파. **이 발견이 대회 전체의 핵심 전환점.**
+
+### 2. CV 악화 ≠ 반드시 실패 — 피처 노이즈가 정규화로 작용
+model29A에서 Tier2 비율 피처 추가 시 CV가 **+0.025 악화**했음에도 Public은 **−0.021 개선**. CV→Public 배율이 1.1626→1.1567로 역대 최저를 기록. 약간의 노이즈성 피처가 암묵적 정규화 역할을 해 일반화를 향상시킬 수 있음을 확인. **이후 pred_std 모니터링이 CV만큼 중요한 지표로 격상.**
+
+### 3. 극값(target ≥ 80)이 전체 MAE의 27.6% 담당, 해결 불가 확인
+전체 데이터의 2.6%에 불과한 [80,800) 구간이 MAE 기여의 27.6%를 차지하고, 모든 base learner가 실제의 32%만 예측(pred/actual = 0.32). 후처리/2-stage/raw-target 학습/분류기 보정 등 12가지 개선 시도가 전부 실패. 이 문제가 tree 모델의 외삽(extrapolation) 한계에서 비롯됨을 확정.
+
+### 4. 동일 파이프라인 내 변형의 한계 — 질적 전환이 필요
+v5에서 메가블렌드/CB메타/피처선택/pseudo-label/multi-seed/KNN후처리 6전략을 하루에 동시 실험했으나 전패. 최종 기준선이 현재 피처+모델 구조에서 이미 로컬 최적점에 도달해 있었으며, 근본적으로 다른 피처 공간(궤적 형상 피처, v6)이 필요하다는 결론 도달.
+
+### 5. 시퀀스 모델의 함정 — OOF vs Test 분포 불일치
+1D-CNN/BiLSTM의 LGBM 상관이 0.9063으로 낮아(다양성 확보 성공) 기대했으나, 7모델 스태킹 제출에서 Public 10.3531로 급등. 원인은 OOF 예측(단일 fold)과 test 예측(5-fold 평균) 간 분포 불일치였음. 시퀀스 모델을 스태킹에 직접 투입하는 방식 폐기.
+
+---
+
+## 최종 모델 아키텍처
+
+```
+──────────────────────────────────────────────────────────────
+ Feature Engineering Pipeline (429 피처, model31/34 기준)
+──────────────────────────────────────────────────────────────
+ [원본 피처 ~90종]
+   └─ layout_info merge (+14종)
+   └─ ts 피처: ts_idx, ts_ratio, ts_sin, ts_cos
+   └─ Lag(1~6) × 8 key_cols           = 48종
+   └─ Rolling(3/5/10) × 8 key_cols    = 48종
+   └─ 시나리오 집계(sc_agg) 11통계 × 18컬럼 = 198종  ← 핵심 돌파구
+   └─ Layout-capacity 비율 피처 Tier1+2 = 12종
+   └─ Shift-safe cross 피처           =  7종
+
+──────────────────────────────────────────────────────────────
+ Base Learners (6종, GroupKFold 5-fold OOF)
+──────────────────────────────────────────────────────────────
+  ┌─ LGBM (MAE + log1p)             OOF ≈ 8.55
+  ├─ CatBoost (MAE + log1p)         OOF ≈ 8.60
+  ├─ CatBoost Tweedie (p=1.5)       OOF ≈ 8.82  ← 극값 특화
+  ├─ ExtraTrees                     OOF ≈ 8.67
+  ├─ RandomForest                   OOF ≈ 8.73
+  └─ LGBM Asymmetric (α=1.5/2.0)   OOF ≈ 8.77  ← pred_std 확장
+
+──────────────────────────────────────────────────────────────
+ Meta Learner (LGBM-meta, GroupKFold 5-fold)
+──────────────────────────────────────────────────────────────
+  model33 (α=1.5): CV 8.4756 / Public 9.8223
+  model34 (α=2.0): CV 8.4803 / Public 9.8078
+
+──────────────────────────────────────────────────────────────
+ 최종 제출: Blend
+──────────────────────────────────────────────────────────────
+  model33 × 0.30  +  model34 × 0.70
+  → Public LB: 9.8073  🏆
+```
+
+---
+
+## 문제 정의
 
 스마트 물류창고 운영 스냅샷 데이터(90개 피처)를 기반으로 **향후 30분간의 평균 출고 지연 시간(분)**을 예측
 
 - 12,000개 독립 시나리오 (시뮬레이션)
 - 각 시나리오: ~6시간, 25개 타임슬롯 (15분 간격)
 - 피처: 로봇 상태, 주문량, 배터리, 통로 혼잡도 등
+- 타겟 분포: 평균 18.96분, 중앙값 9.03분, max 715분 (강한 우편향)
 
-## Data
+## 데이터
 
-| 파일 | 설명 |
-|---|---|
-| `train.csv` | 학습 데이터 |
-| `test.csv` | 테스트 데이터 |
-| `layout_info.csv` | 창고 레이아웃 보조 정보 |
-| `sample_submission.csv` | 제출 양식 (타겟: `avg_delay_minutes_next_30m`) |
+| 파일 | 크기 | 설명 |
+|---|---|---|
+| `train.csv` | 250,000행 × 94컬럼 | 10,000 시나리오 × 25 타임슬롯 |
+| `test.csv` | 50,000행 × 93컬럼 | 2,000 시나리오 × 25 타임슬롯 |
+| `layout_info.csv` | 300행 × 15컬럼 | 250개 창고 레이아웃 정보 |
+| `sample_submission.csv` | — | 제출 양식 (타겟: `avg_delay_minutes_next_30m`) |
 
-## Project Structure
+---
+
+## 프로젝트 구조
 
 ```
 Smart-Warehouse-Delay-Prediction/
-├── data/                        # 원본 데이터 (.gitignore)
+├── data/                              # 원본 데이터 (.gitignore)
 ├── notebooks/
-│   ├── 01_EDA.ipynb             # EDA (26셀, PNG 8종)
-│   ├── 02_Baseline_Model.ipynb  # LightGBM 베이스라인 (KFold MAE=7.3351)
-│   ├── 03_CV_Strategy.ipynb     # GroupKFold vs KFold (리크 1.41분 확인)
-│   ├── 04_Log_Transform.ipynb   # log1p 변환 실험 (효과 미미, 원본 유지)
-│   ├── 05_TS_Features.ipynb     # ts_idx/ratio/sin/cos (−0.40%)
-│   └── 06_Feature_Engineering.ipynb  # Lag+Rolling+Domain (−1.94%)
+│   ├── 01_EDA.ipynb                   # 탐색적 데이터 분석 (시각화 8종)
+│   ├── 02_Baseline_Model.ipynb        # LightGBM 베이스라인
+│   ├── 03_CV_Strategy.ipynb           # GroupKFold vs KFold 검증
+│   ├── 04_Log_Transform.ipynb         # log1p 변환 실험
+│   ├── 05_TS_Features.ipynb           # 타임슬롯 피처
+│   ├── 06_Feature_Engineering.ipynb   # Lag + Rolling + Domain FE
+│   └── 07_Ensemble_Optuna.ipynb       # Optuna 3모델 앙상블
 ├── src/
-│   ├── __init__.py
-│   └── feature_engineering.py   # FE 파이프라인 모듈 (build_features)
-├── models/                      # 학습 모델 저장 (.gitignore)
-├── submissions/                 # 제출 CSV
-├── docs/                        # 문서, 분석 PNG
+│   ├── feature_engineering.py         # 공통 FE 파이프라인 (build_features)
+│   │
+│   ├── # ── v1 실험 시리즈 ──
+│   ├── run_exp_model{1-12}_*.py       # 모델 다양성 탐색 (Tweedie/Quantile/Stacking/HGB/MLP 등)
+│   ├── run_exp_fe_v{2-4}_*.py         # FE 확장 ablation
+│   │
+│   ├── # ── v2 시나리오 집계 시리즈 ──
+│   ├── run_exp_model2{1-4}_*.py       # sc_agg 5모델 → Optuna → 메타 강화 실험
+│   │
+│   ├── # ── v3 비율 피처 + 손실함수 시리즈 ──
+│   ├── run_exp_model27_hybrid_stacking.py   # 시퀀스 모델 7모델 스태킹 (실패 케이스)
+│   ├── run_exp_v3_model28A_layout_robust.py # 비율 피처 Tier1 (9.8525 돌파)
+│   ├── run_exp_v3_model29A_ratio_expand.py  # 비율 피처 Tier2 (9.8312)
+│   ├── run_exp_v3_model30_combined.py       # Tier2 + Optuna 결합 (9.8279)
+│   ├── run_model33_asymmetric.py            # Asymmetric MAE α=1.5 (9.8223)
+│   ├── run_model34_loss_opt.py              # TW1.5 + Asym α=2.0 (9.8078)
+│   ├── blend_m33_m34.py                    # 최종 블렌드 (9.8073 🏆)
+│   │
+│   ├── # ── 분석 스크립트 ──
+│   ├── analysis_model28A_axis3.py     # 극값 구간 정밀 분석 (MAE 기여도/headroom)
+│   ├── eda_tail_driver.py             # 극값 시나리오 특성 분석
+│   ├── eda_loss_ablation.py           # 손실함수별 구간 MAE 비교
+│   │
+│   ├── # ── v4 실험 (전부 실패) ──
+│   ├── run_v4_extreme_2stage.py       # 2-Stage 극값 전략
+│   ├── run_v4_postprocess_*.py        # 후처리 3종 (Isotonic/IF/BC)
+│   │
+│   └── # ── v6 (진행 중) ──
+│       └── run_model41_traj_fe.py     # 궤적 형상 피처 29종
+├── docs/
+│   ├── v3_strategy_report.md          # 시퀀스 모델 전략 분석
+│   ├── v6_strategy.md                 # 궤적 형상 피처 전략 문서
+│   └── *.png                          # EDA 및 실험 시각화
 ├── .gitignore
 ├── requirements.txt
 └── README.md
 ```
 
-## Timeline
+---
+
+## 대회 일정
 
 | 날짜 | 내용 |
 |---|---|
-| 03.31 | 참가 신청 시작 |
 | 04.01 | 대회 시작 |
 | 04.27 | 팀 병합 마감 |
-| 05.04 | 대회 종료 |
+| 05.04 | **대회 종료** |
 | 05.07 | 코드 및 PPT 제출 마감 |
 | 05.15 | 코드 검증 |
 | 05.18 | 최종 수상자 발표 |
 
-## Approach Log
+---
 
-| # | 날짜 | 실험 | CV MAE | ΔvsBase | 피처수 | Public LB | 제출 파일 |
-|---|---|---|---|---|---|---|---|
-| 1 | 04.01 | Baseline (KFold, 리크) | 7.3351 | — | 104 | — | `baseline_lgbm_mae7.3351.csv` |
-| 2 | 04.02 | GroupKFold 기준점 | 9.2156 | — | 104 | — | `groupkfold_lgbm_cv.csv` |
-| 3 | 04.02 | + ts 피처 (4종) | 9.1790 | −0.40% | 108 | — | `groupkfold_ts_lgbm.csv` |
-| 4 | 04.03 | Full FE (ID순서버그) | 9.0010 | −1.94% | 172 | **19.8209** ❌ | `groupkfold_fullFE_lgbm.csv` |
-| 5 | 04.04 | Full FE (버그수정) | 9.0010 | −1.94% | 172 | 10.4936 | `groupkfold_fullFE_lgbm_fixed.csv` |
-| 6 | 04.05 | Optuna LGBM 단독 | 8.8895 | −3.43% | 284 | 10.3807 | `best_single_lgbm_optuna.csv` |
-| 7 | 04.05 | **Optuna 앙상블 (LGBM+CB+XGB)** | **8.8703** | **−3.64%** | **284** | **10.3349** | **`ensemble_lgbm_cb_xgb_optuna.csv`** |
-| 8 | 04.11 | layout_info Ablation (A~C 전략) | — | — | — | — | `ablation_results_20260411_1806.csv` (CV 전용) |
-| 9 | 04.11 | Transform Ablation: log1p=**8.8836** / sqrt=8.8956 / identity=8.9089 / stretch 후처리 전부 악화 | 8.8836 (log1p) | ➖ 동일 | 284 | — | `transform_ablation_20260411_1832.csv` (CV 전용) |
-| 10 | 04.11 | **3모델 Optuna 앙상블 (CB·XGB 신규 튜닝)** | **8.8674** | **−3.67%** | **284** | **10.3347** | **`ensemble_optuna_all3.csv`** |
-| 11 | 04.11 | TS0 Broadcast Ablation (연속8+플래그3+복합1) | 8.9529 (Exp3) | −0.0138 vs Exp0 | 184 | — | `ts0_ablation_*.csv` (CV 전용) |
-| 11b | 04.11 | **ensemble_ts0** (TS0 12종 + log1p + LGBM·CB·XGB, LGBM 신규 Optuna) | **8.8649** | **✅ −0.0025** | 296 | 10.4091 ❌ | `ensemble_ts0_LGBM_CB_XGB.csv` |
-| 11c | 04.11 | **2-Stage P90 콤보** (base×0.75 + 2stage×0.25) | 8.8745 | ➖ +0.0071 | 284 | — | `2stage_combo.csv` |
-| 11d | 04.11 | 2-Stage P90 단독 | 8.9503 | ❌ +0.0829 | 284 | — | `2stage_p90.csv` |
-| 12 | 04.12 | P_extreme 메타 피처 앙상블 (분류기 AUC=0.875) | 8.9089 | ❌ +0.0415 | 285 | — | CV 전용 (개선 없음) |
-| 13 | 04.12 | DART LGBM Optuna (20 trials, 2-fold) | 8.9661 단독 | ❌ +0.0987 | 285 | — | CV 전용 |
-| 14 | 04.12 | DART 앙상블 (DART+CB+XGB, 가중치 0.56/0.34/0.10) | 8.9221 | ❌ +0.0547 | 285 | 미제출 권장 | `ensemble_dart_meta.csv` |
-| 15 | 04.12 | **[일반화 실험 3]** 피처 중요도 하위 10% 컷 + LGBM+CB (lag[1-6]+roll[3,5,10]) | **8.8871** | ➖ +0.0197 | 189 | 10.3662 | `feat_prune_bot10pct_LGBM_CB.csv` |
-| 16 | 04.12 | **[일반화 실험 2]** XGBoost 제외 LGBM+CB 클린 앙상블 (log1p) | 8.8913 | ➖ +0.0239 | 212 | 미제출 | `ensemble_lgbm_cb_clean.csv` |
-| 17 | 04.12 | **[일반화 실험 1]** sqrt 단독 앙상블 | 8.8776 | ➖ +0.0102 | 212 | 미제출 | `ensemble_sqrt_lgbm_cb.csv` |
-| 18 | 04.12 | **[일반화 실험 1]** sqrt×0.70 + log1p×0.30 블렌드 | **8.8749** | ➖ +0.0075 | 212 | 10.3674 | `ensemble_sqrt_log1p_blend.csv` |
-| 19 | 04.12 | **[모델실험1-A]** Tweedie(p=1.5)+CB 앙상블 | **8.8593** | ✅ −0.0081 | 212 | 미제출 | `ensemble_tweedie15_cb.csv` |
-| 20 | 04.12 | **[모델실험1-B]** Tweedie p-sweep 4모델 (Tw1.8+CB 실질) | 8.8828 | ➖ +0.0154 | 212 | 미제출 | `ensemble_tweedie_blend.csv` |
-| 21 | 04.12 | **[모델실험2-A]** Quantile LGBM×3 블렌드 (q=0.3/0.5/0.7) | 8.8764 | ➖ +0.0090 | 212 | 미제출 | `ensemble_quantile_lgbm3.csv` |
-| 22 | 04.12 | **[모델실험2-B]** Quantile 4모델 블렌드 (q×3+CB) | 8.8697 | ➖ +0.0023 | 212 | 미제출 | `ensemble_quantile_4model.csv` |
-| 23 | 04.12 | **[모델실험3-A]** Stacking Ridge-meta (LGBM+CB+ET) | 8.9152 | ❌ +0.0478 | 212 | 미제출 | `stacking_ridge_meta.csv` |
-| 24 | 04.12 | **[모델실험3-B] Stacking LGBM-meta (LGBM+CB+ET)** | **8.8541** | ✅ −0.0133 | 212 | 10.3032 🏆 | `stacking_lgbm_meta.csv` |
-| 25 | 04.12 | **[모델실험4] Stacking v2 (LGBM+TW1.8+ET → LGBM-meta)** | 8.8087 | ✅ −0.0454 (CV) | 212 | 10.3118 ⚠️ | `stacking_v2_lgbm_tw_et.csv` |
-| 26 | 04.12 | **[모델실험5] Stacking v3 4모델 (LGBM+TW1.8+CB+ET → LGBM-meta)** | **8.7929** | **✅ −0.0612** | **212** | **10.2264 🏆** | **`stacking_4model_lgbm_meta.csv`** |
-| 27 | 04.13 | **[모델실험6] Optuna 메타 LGBM (4모델 체크포인트, N=50)** | 8.7929 | ➖ 동일 | 212 | 10.2273 | `stacking_4model_optuna_meta.csv` |
-| 28 | 04.13 | **[모델실험7-A]** Ridge+LGBM 메타 블렌드 (최적: Ridge×0.05+LGBM×0.95) | **8.7927** | ✅ −0.0002 | 212 | 10.2309 ⚠️ | `stacking_4model_ridge_lgbm_blend.csv` |
-| 28b | 04.12 | **[모델실험7-B]** Ridge+LGBM 0.5:0.5 블렌드 | 8.8123 | ➖ +0.0194 | 212 | — | `stacking_4model_half_blend.csv` |
-| 29 | 04.13 | **[모델실험9] Stacking 5모델+Q05 (LGBM+TW1.8+CB+ET+Q05 → LGBM-meta)** | 8.7938 | ➖ +0.0009 | 212 | 10.2358 ❌ | `stacking_5model_q05_lgbm_meta.csv` |
-| 30 | 04.13 | **[모델실험8] Stacking 5모델+RF (LGBM+TW1.8+CB+ET+RF → LGBM-meta)** | **8.7911** | **✅ −0.0018** | 212 | **10.2213 🏆** | **`stacking_5model_rf_lgbm_meta.csv`** |
-| 31 | 04.14 | **[FE v2] KEY_COLS 개선+Delta+Layout비율 (264피처, RF 5모델)** | **8.7842** | **✅ −0.0069 (CV)** | **264** | **10.2801 ⚠️** | **`stacking_fe_v2_rf_lgbm_meta.csv`** |
-| 32 | 04.15 | **[Ablation] FE v2 no-delta (252피처, RF 5모델)** | **8.7836** | ✅ −0.0006 vs FE v2 | **252** | 10.2829 ⚠️ | **`stacking_fe_v2_nodelta_rf_lgbm_meta.csv`** |
-| 33 | 04.15 | **[FE v3] Cumulative 피처 (281피처, RF 5모델)** | **8.7663** | **✅ −0.0248 🏆 CV 신기록** | **281** | **10.2571 ⚠️** | **`stacking_fe_v3_cumul_rf_lgbm_meta.csv`** |
-| 34 | 04.15 | **[FE v2+Optuna A] LGBM 재튜닝 (263피처)** | **8.7816** | ✅ −0.0026 vs FE v2 | **263** | 10.2835 ⚠️ | **`stacking_fe_v2_optuna_lgbm_meta.csv`** |
-| 35 | 04.15 | **[FE v4] 위치×신호+가속도+모멘텀 (304피처, RF 5모델)** | 8.7963 | ❌ +0.0121 vs FE v2 | 304 | 미제출 | `stacking_fe_v4_interact_rf_lgbm_meta.csv` |
-| 36 | 04.15 | **[FE v1+Cumul] 원본 KEY_COLS(8종)+Cumulative (239피처, RF 5모델)** | **8.7699** | ✅ −0.0212 vs FE v1 | 239 | 10.2517 ⚠️ | `stacking_fe_v1_cumul_rf_lgbm_meta.csv` |
-| 37 | 04.15 | **[ExtLag A] lag 1-12 확장 (260피처, RF 5모델)** | **8.7697** | ✅ −0.0214 vs FE v1 | 260 | 미제출 | `stacking_fe_v1_extlag_A_lag_ext_rf_lgbm_meta.csv` |
-| 37b | 04.15 | [ExtLag B] rolling 3-20 확장 (244피처) | 8.7719 | ✅ −0.0192 | 244 | 미제출 | `stacking_fe_v1_extlag_B_roll_ext_rf_lgbm_meta.csv` |
-| 37c | 04.15 | [ExtLag C] lag+rolling 전체 확장 (292피처) | 8.7732 | ✅ −0.0179 | 292 | 미제출 | `stacking_fe_v1_extlag_C_full_ext_rf_lgbm_meta.csv` |
-| 38 | 04.15 | **[모델실험10] HistGradientBoosting 6모델 스태킹 (FE v1 기반)** | 8.7858 (6모델) vs 8.7937 (5모델) | ➖ +0.0026 vs RF5 | 212 | 미제출 | `stacking_6model_histgb_lgbm_meta.csv` |
-| 39 | 04.15 | **[모델실험11-A] MLP v1 (early_stop=True, iter=31 조기종료)** | 8.7919 (6모델) | ➖ +0.0008 vs RF5 / MLP OOF 9.8659 과소학습 | 212 | 미제출 | `stacking_6model_mlp_lgbm_meta.csv` |
-| 39b | 04.15 | **[모델실험11-B] MLP v2 (early_stop=False, iter=300 과적합)** | — (중단) | ❌ OOF MAE=12.7 / pred_std=72.18 — 시나리오 과적합 치명적 | 212 | 중단 | — |
-| 40 | 04.16 | **[모델실험12] LGBM Poisson 6모델 스태킹 (FE v1)** | 8.7782 | ➖ (다양성 유효: LGBM-Poi 0.9348) | 212 | 미제출 | `stacking_6model_poisson_lgbm_meta.csv` |
-| — | — | **── v2.0 전환: 시나리오 집계 피처 ──** | — | — | — | — | — |
-| 41 | 04.17 | **[모델실험21] 시나리오 집계 FE + 5모델 스태킹 (v2.0)** | **8.5097** | **✅ 돌파** | **302** | **9.9550 🏆** | `sc_agg_stacking_5model.csv` |
-| 42 | 04.17 | **[모델실험22] 시나리오집계 11통계 확장 (198피처, 5모델)** | **~8.51** | **✅ Public 최고** | **198** | **9.9385 🏆** | `model22_sc_agg_extended.csv` |
-| 43 | 04.17 | [모델실험23] Optuna v2 LGBM+CB 재튜닝 (302피처, 5모델) | **8.5038** | ✅ CV 최고 | 302 | 9.9522 | `model23_optuna_v2.csv` |
-| 44 | 04.18 | [모델실험24] 메타 피처 강화 (OOF+sc_mean, CB/XGB/LGBM메타) | 8.5589 (best) | ❌ 정보 중복 → 전면 폐기 | 302+ | 10.0405 ❌ | `model24_meta_enhanced_meta_v3.csv` |
+## 실험 기록 (Approach Log)
 
-> **v1 시리즈 CV 신기록**: `stacking_fe_v3_cumul_rf_lgbm_meta.csv` (CV **8.7663**)
-> **v2 시리즈 Public 최고**: `model22_sc_agg_extended.csv` (Public **9.9385** 🏆) / **CV 최고**: model23 (CV **8.5038**)
-> **CV→Public 배율**: v1=1.1627, v2: model22 ~1.168(최고) / model21 1.170 / model23 1.170 / model24 1.173(최악)
-> **리더보드**: 1위 9.69923 / 갭 0.239 / **핵심 발견**: 11통계 분포 피처(skew/kurt/cv)가 CV 무관하게 일반화 개선
-> **v3.0 Phase 1**: 시퀀스 모델(1D-CNN+BiLSTM) 다양성 탐색 — 시나리오 내 시계열 패턴(자기상관 0.62) 포착 → 7모델 하이브리드 스태킹 목표. 코드: `run_exp_model26_seq_hybrid.py`
+### v1 시리즈 — 피처 엔지니어링 + GBDT 스태킹 (04.01~04.16)
 
-### ⚠️ 중요 버그 수정 기록 (04.04)
+| # | 날짜 | 실험 | CV MAE | 피처수 | Public LB | 비고 |
+|---|---|---|---|---|---|---|
+| 1 | 04.01 | Baseline (KFold, 리크 포함) | 7.3351 | 104 | — | KFold 리크 1.41분 확인 |
+| 2 | 04.02 | GroupKFold 기준점 | 9.2156 | 104 | — | |
+| 3 | 04.02 | + ts 피처 4종 | 9.1790 | 108 | — | −0.40% |
+| 4 | 04.04 | Full FE (ID순서버그) | 9.0010 | 172 | 19.8209 ❌ | test 정렬 misalign |
+| 5 | 04.04 | Full FE (버그수정) | 9.0010 | 172 | 10.4936 | |
+| 6 | 04.05 | Optuna LGBM 단독 | 8.8895 | 284 | 10.3807 | |
+| 7 | 04.05 | **Optuna 앙상블 (LGBM+CB+XGB)** | **8.8703** | **284** | **10.3349** | |
+| 8 | 04.11 | Transform Ablation | 8.8836 | 284 | — | log1p 최적 확정 |
+| 9 | 04.11 | TS0 Broadcast + 앙상블 | 8.8649 | 296 | 10.4091 ❌ | Public 역전 |
+| 10 | 04.11 | **3모델 Optuna 전체 튜닝** | **8.8674** | **284** | **10.3347** | |
+| 11 | 04.12 | layout_info Ablation (4전략) | 8.8899 | 284~318 | — | ordinal이 최적 확정 |
+| 12 | 04.12 | Stacking LGBM-meta (LGBM+CB+ET) | 8.8541 | 212 | 10.3032 | Ridge meta 무효 확인 |
+| 13 | 04.12 | Stacking v2 (TW1.8 교체) | 8.8087 | 212 | 10.3118 ⚠️ | CV↑ 배율 악화 |
+| 14 | 04.12 | **Stacking v3 4모델 (LGBM+TW1.8+CB+ET)** | **8.7929** | **212** | **10.2264 🏆** | |
+| 15 | 04.13 | **Stacking 5모델 RF 추가** | **8.7911** | **212** | **10.2213 🏆** | |
+| 16 | 04.14 | FE v2 (KEY_COLS 확장+Delta+비율) | 8.7842 | 264 | 10.2801 ⚠️ | |
+| 17 | 04.15 | Ablation: Delta 무효 확정 | 8.7836 | 252 | 10.2829 ⚠️ | |
+| 18 | 04.15 | FE v3 Cumulative 피처 | **8.7663** | 281 | 10.2571 ⚠️ | CV 신기록, 배율 악화 |
+| 19 | 04.15 | FE v1+Cumul 가설 검증 | 8.7699 | 239 | 10.2517 ⚠️ | Cumulative가 배율 악화 원인 확정 |
+| 20 | 04.15~16 | ExtLag A/B/C + HGB + MLP 탐색 | 8.7697~8.7858 | 244~292 | 미제출 | 배율 1.170 수렴 → FE 방향 차단 |
 
-**버그**: `add_lag_features` / `add_rolling_features` 내부에서 `sort_values(['scenario_id', 'ts_idx'])`를 적용해 test 데이터의 행 순서가 원본 ID 순서와 달라짐. 예측값이 완전히 다른 ID에 할당되어 Public LB = 19.82 (정상 예측의 2배 이상)
+> **v1 Public 최고**: 10.2213 (5모델 RF 스태킹) | **배율**: 1.1627 고정
 
-**원인**: 원본 test.csv는 ID 순서로 정렬, FE 후 test는 scenario_id 기준으로 정렬됨. `sample_submission.csv`는 ID 순서이므로 예측값이 완전 misaligned
+---
 
-**수정**: `_orig_order` 컬럼을 FE 전에 저장하고 FE 후 `sort_values('_orig_order')`로 원본 순서 복원
+### v2 시리즈 — 시나리오 집계 피처 돌파 (04.17~04.18)
 
-**영향 없는 파일**: `groupkfold_lgbm_cv.csv`, `groupkfold_ts_lgbm.csv` (lag/rolling FE 없음)
+> **전환 계기**: 시나리오 간 분산 63.4% 발견 → 25행 전체 집계를 broadcast
 
-### 주요 발견 사항
+| # | 날짜 | 실험 | CV MAE | 피처수 | Public LB | 비고 |
+|---|---|---|---|---|---|---|
+| 21 | 04.17 | **sc_agg 5모델 (mean/std/max/min/diff × 18컬럼)** | **8.5097** | 302 | **9.9550 🏆** | 단번에 0.27 개선 |
+| 22 | 04.17 | **sc_agg 11통계 확장 (+median/p10/p90/skew/kurt/cv)** | ~8.51 | 302+α | **9.9385 🏆** | 배율 1.168 (최저) |
+| 23 | 04.17 | Optuna v2 (LGBM+CB 재튜닝) | **8.5038** | 302 | 9.9522 | CV 최고, 배율 동일 |
+| 24 | 04.18 | 메타 피처 강화 (OOF+sc_mean) | 8.5589 | 302+ | 10.0405 ❌ | 정보 중복 → 폐기 |
+
+> **v2 Public 최고**: 9.9385 | **핵심 발견**: 11통계 분포 피처(skew/kurt/cv)가 일반화 개선
+
+---
+
+### v3 시리즈 — 비율 피처 + 손실함수 최적화 (04.18~04.22)
+
+| # | 날짜 | 실험 | CV MAE | 피처수 | Public LB | 비고 |
+|---|---|---|---|---|---|---|
+| 25 | 04.18 | 시퀀스 모델 Phase1 (1D-CNN+BiLSTM) | CNN 9.13 / LSTM 8.91 | — | — | 상관 0.9063 다양성 ✅ |
+| 26 | 04.18 | **7모델 하이브리드 스태킹** | **8.5128** | — | 10.3531 ❌ | OOF-test 분포 불일치 |
+| 27 | 04.19 | **비율 피처 Tier1 5종 (415피처)** | **8.4743** | 415 | **9.8525 🏆** | 배율 1.1626 복귀 |
+| 28 | 04.19 | 극값 메타 강화 실험 | 8.5384 | 415 | — | 메타 레벨 한계 확인 |
+| 29 | 04.19 | **비율 피처 Tier2 7종 추가 (422피처)** | 8.4989 | 422 | **9.8312 🏆** | ⭐ CV 악화에도 Public 개선 |
+| 30 | 04.19 | Optuna 재튜닝 (415피처) | **8.4723** | 415 | 9.8356 | |
+| 31 | 04.20 | **422피처 + Optuna 파라미터 결합** | **8.4838** | 422 | **9.8279 🏆** | |
+| 32 | 04.20 | 2-Stage 극값 전략 v4.0 (441피처) | 8.4977 | 441 | 9.8414 ❌ | log1p 압축 가설 기각 |
+| 33 | 04.21 | 후처리 3종 + IF 보정 + BC 분류기 | — | — | 9.8340~9.8458 ❌ | 후처리 방향 완전 종결 |
+| 34 | 04.21 | **Shift-safe FE 7종 추가 (429피처)** | **8.4786** | 429 | **9.8255 🏆** | |
+| 35 | 04.21 | FE 자동 필터 확장 / blend | ~8.48 | 449 | 9.8246~9.8339 | 순이익 없음 |
+| 36 | 04.22 | **6모델 + Asymmetric MAE (α=1.5)** | **8.4756** | 429 | **9.8223 🏆** | |
+| 37 | 04.22 | **TW1.5 교체 (TW1.8→TW1.5)** | **8.4720** | 429 | 9.8144 | [80+] MAE 81.14 |
+| 38 | 04.22 | **6모델 + Asymmetric MAE (α=2.0)** | 8.4803 | 429 | **9.8078 🏆** | 배율 1.1565 역대 최저 |
+| 39 | 04.22 | **blend model33 × model34 (w=0.3:0.7)** | — | — | **9.8073 🏆** | **최종 최고 제출** |
+
+> **v3 Public 최고**: **9.8073** (blend_m33m34_w80) | **1위 대비 갭**: 0.108
+
+---
+
+### v5 — 6전략 동시 실험 (04.24, 전패)
+
+| 전략 | Public | 판정 | 원인 |
+|---|---|---|---|
+| 메가블렌드 (13모델) | 미제출 | ❌ | 상관 0.994~0.999, 다양성 제로 |
+| CB 메타 교체 | 9.8110 | ❌ | 배율 악화 |
+| 피처 선택 (top80) | 미제출 | ❌ | CV 8.8061 완전 실패 |
+| Pseudo-label | 미제출 | ❌ | TW1.5 OOF 붕괴 |
+| Multi-seed 3개 | 9.8097 | △ | 분산 감소이나 Public 무개선 |
+| KNN 후처리 (K=10) | 10.1489 | ❌❌ | 대폭 악화 |
+
+---
+
+### v6 — 궤적 형상 피처 (2026-04-25~, 진행 중)
+
+| 카테고리 | 피처 수 | 설명 |
+|---|---|---|
+| slope × 8 | 8 | 시나리오 내 선형 추세 기울기 (r=−0.387 실측) |
+| fl_ratio × 8 | 8 | last5 / first5 평균 비율 (성장 방향) |
+| peak_pos × 5 | 5 | 극값 발생 타임슬롯 위치 |
+| above_cnt × 5 | 5 | 고부하 임계값 초과 횟수 |
+| mono × 3 | 3 | 단조증가 비율 (방향 일관성) |
+
+- base: model31 (429피처) → model41 (458피처)
+- 스크립트: `src/run_model41_traj_fe.py`
+
+---
+
+## 버그 수정 기록
+
+**ID 순서 misalignment (04.04 발견, 즉시 수정)**
+
+- **현상**: lag/rolling FE 내부에서 `sort_values(['scenario_id', 'ts_idx'])`로 test 행 순서 변경 → 예측값이 다른 ID에 할당 → Public LB 19.82 (정상의 2배)
+- **원인**: FE 후 test가 scenario_id 기준 정렬, 제출 파일은 원본 ID 기준
+- **수정**: FE 전 `_orig_order` 컬럼 저장 → FE 후 복원
+
+---
+
+## 실험 인사이트 요약
 
 | 발견 | 내용 |
 |---|---|
-| KFold 리크 | KFold 7.80 vs GroupKFold 9.22 → **1.41분 리크** (시나리오 간 타임슬롯 겹침) |
-| log1p 효과 | 왜도 5.68→0.08이지만 L1 LGBM 강건 → 효과 없음 (±0.005) |
-| ts 피처 | 0.40% 향상. ts_idx(0→24)는 시나리오 진행에 따른 지연 누적 포착 |
-| Lag/Rolling | Rolling avg_trip_distance_roll5_mean이 Top 2 피처. +1.89% 향상 |
-| Domain 피처 | 소폭 +0.04분. LGBM이 내부적으로 상호작용 이미 포착 |
-| **ID 순서 버그** | **lag/rolling FE 후 test 정렬 꼬임 → Public LB 2배 오차. 수정 완료** |
-| **layout_info 추가 전략 Ablation (04.11)** | **one-hot/비율피처/Target Enc/교호작용 모두 CV MAE 악화 → 현재 ordinal 파이프라인이 최적** |
+| KFold 리크 | KFold 7.80 vs GroupKFold 9.22 → **1.41분 리크** |
+| log1p 효과 | LGBM L1의 왜도 강건성으로 변환 효과 미미 (±0.005) |
+| layout_info Ablation | one-hot/비율/Target Enc/교호작용 모두 악화 → ordinal 최적 |
+| XGBoost 탈락 | 정규화 부재로 과적합 → 앙상블 가중치 0.038로 탈락 |
+| 배율 수렴 함정 | Cumulative/Delta/KEY_COLS 확장이 pred_std 압축 → 배율 고정 |
+| sc_agg 돌파 | 시나리오 전체 25행 집계 broadcast → 가장 큰 단일 도약 |
+| 비율 피처의 정규화 효과 | Tier2 피처가 CV 노이즈이나 test 과적합 방지 역할 |
+| 극값 한계 | target≥80 (2.6% 데이터, MAE의 27.6%)는 tree 외삽 한계 |
 
-### layout_info Ablation 결과 (04.11, LightGBM 5-fold)
+---
 
-| 실험 | 피처수 | CV MAE | vs Baseline | 판정 |
-|---|---|---|---|---|
-| Baseline (ordinal layout_type) | 284 | 8.8899 | — | ✅ 현재 파이프라인 |
-| A: one-hot layout_type | 287 | 8.9063 | +0.0164 ❌ | 악화 |
-| A+B: +파생 비율 피처 6종 | 293 | 8.8910 | +0.0011 ➖ | 무의미 |
-| A+B+D: +Target Encoding (OOF) | 295 | 8.9235 | +0.0336 ❌ | 악화 |
-| A+B+D+C: +교호작용 피처 | 318 | 8.9388 | +0.0489 ❌ | 악화 |
-
-**원인 분석**:
-- **One-hot vs ordinal**: hub_spoke 지연(22.3분) > 나머지(18.1~18.4분) 구조가 ordinal에서 자연스럽게 보존됨. LGBM 트리는 단일 수치 피처를 더 효율적으로 분할
-- **비율 피처(B)**: LGBM 트리는 내부 분할로 이미 비율 관계 포착. 명시적 추가는 상관 피처 증가만 유발
-- **Target Encoding(D)**: unseen 50개 창고가 global mean으로 fallback → 노이즈 신호 삽입. 기존 직접 피처로 이미 창고별 특성 표현 중
-- **교호작용(C)**: 피처 수 318개로 팽창 → feature_fraction 효과 희석, 다중공선성 증가
-
-**결론**: layout_info는 현재 파이프라인(merge + ordinal 인코딩)으로 이미 최적 활용 중. 추가 전략 불필요.
-
-### Optuna 3모델 전체 튜닝 결과 (04.11)
-
-| 모델 | OOF MAE | 가중치 | 비고 |
-|---|---|---|---|
-| LGBM | 8.8836 | 0.608 | 기존 최적 파라미터 재사용 |
-| CatBoost | 8.9125 | 0.354 | Optuna 20 trials 신규 튜닝 |
-| XGBoost | 9.3713 | **0.038** | ⚠️ 사실상 제외 수준 |
-| 균등 앙상블 | 8.9193 | — | |
-| **최적 앙상블** | **8.8674** | — | ↓0.003 vs 이전(8.8703) |
-
-### TS0 Broadcast 피처 Ablation 결과 (04.11)
-
-> **배경**: 추가 EDA — robot_utilization(TS0) r=0.475 vs 전체 r=0.211 (2.3× 신호 강도)
-> 시나리오 초기 상태가 25 타임슬롯 전체 결과를 결정한다는 가설 검증
-
-| 실험 | 추가 피처 | 피처수 | CV MAE | Δ Baseline | 판정 |
-|---|---|---|---|---|---|
-| Exp0 Baseline | — | 172 | 8.9667 | — | 기준 |
-| Exp1 TS0_Continuous | TS0 연속형 8종 broadcast | 180 | 8.9550 | −0.0117 | ✅ 개선 |
-| Exp2 TS0_Cont+Flags | + 이진 플래그 3종 (blocked/fault/recovery>0) | 183 | 8.9536 | −0.0132 | ✅ 개선 |
-| Exp3 TS0_Full | + 복합 취약성 지수 (util×order) | 184 | 8.9529 | −0.0139 | ✅ 개선 |
-
-**주요 발견**:
-- TS0 broadcast 피처 전 단계에서 일관된 개선 확인 (가설 검증 성공)
-- 연속형 8종이 핵심 신호 (−0.0117). 플래그·복합 지수는 소폭 추가 기여
-- 한계: 이 ablation은 log1p 미적용 버전. 앙상블과 결합 시 추가 개선 기대
-- **다음 단계**: TS0(Exp3) + log1p transform + LGBM-CB 앙상블 → Public < 10.0 목표
-
-**XGBoost 이슈 분석**:
-- Optuna가 reg_alpha≈0.0005, reg_lambda≈0.003 (사실상 정규화 없음) 파라미터를 선택
-- 정규화 부재 → 훈련 중 빠른 과적합 → early_stopping 100 rounds에서 조기 종료 (~100~200 trees)
-- Fold당 11초 완료가 증거 (정상이면 수분 소요)
-- Level-wise 성장 방식(XGB)이 이 데이터셋 구조(시나리오×타임슬롯)에 leaf-wise(LGBM)보다 구조적으로 불리
-- **결론**: XGBoost는 이 태스크에서 LGBM·CB 대비 근본적으로 열위. 앙상블 제외 검토 필요
-
-### Transform Ablation 상세 결과 (04.11)
-
-| 변환 방식 | OOF MAE | OOF std | stretch 배율 | stretch 후 MAE | 판정 |
-|---|---|---|---|---|---|
-| **log1p** | **8.8836** | 12.9492 | ×2.112 | 13.2299 | ✅ 최적 |
-| sqrt | 8.8956 | 12.9589 | ×2.111 | 13.2829 | ➖ 근소 열위 |
-| identity (변환 없음) | 8.9089 | 13.1249 | ×2.084 | 13.2422 | ❌ 최하 |
-
-**핵심 발견**:
-- log1p가 0.0120 차이로 sqrt 대비 우세하나 격차는 미미함 (통계적 유의성 불명확)
-- stretch 후처리 (예측 std 보정): OOF MAE 13.2~13.3으로 오히려 대폭 악화 → **stretch는 사용 금지**
-- 극값 과소예측 문제(예측 std ~13 vs 실제 std ~27)는 후처리보다 피처/아키텍처로 해결해야 함
-- **결론**: log1p 변환 유지, sqrt 대안 가능 (Δ0.0120 차이)
-
-### ensemble_ts0 & 2-Stage 실험 요약 (04.11)
-
-#### ensemble_ts0 (TS0 Broadcast + log1p + 3모델 앙상블) ← **CV 신규 최고**
-
-| 모델 | OOF MAE | 가중치 |
-|---|---|---|
-| **LGBM** (TS0 + Optuna 신규) | **8.8752** | 0.754 |
-| CatBoost | 8.9622 | 0.190 |
-| XGBoost | 9.4880 | 0.056 |
-| 균등 앙상블 | 8.9369 | — |
-| **최적 앙상블** | **8.8649** | — ← **CV 최고** |
-
-- **TS0 피처 12종**: ts0_robot_utilization, ts0_order_inflow_15m, ts0_robot_active, ts0_sku_concentration, ts0_max_zone_density, ts0_congestion_score, ts0_robot_idle, ts0_urgent_order_ratio, ts0_blocked/fault/recovery_flag, ts0_overload_risk
-- **LGBM 신규 Optuna 파라미터**: num_leaves=183, lr=0.020703 (기존 181, 0.020616 대비 미세 조정)
-- **예측 분포**: mean=18.62, std=13.81, max=86.52 (std 높음 → 극값 더 공격적)
-- **Public 미제출**: CV 갭 검증 필요. 제출 강력 권장
-
-#### 2-Stage P90 모델
-
-- **설계**: P90(45.2분) 기준 정상/극값 분리 → Stage1 분류기(AUC 0.8754) + Stage2 체제별 회귀
-- **2-Stage 단독**: CV 8.9503 (❌ 기준 8.8836 대비 +0.0667) — 극값 구간 MAE 44.97 (기준 45.60보다 개선이나 전체 악화)
-- **콤보 (base×0.75 + 2stage×0.25)**: CV **8.8745** (기준 대비 ↓0.0091 개선, 현재 최고 대비 +0.0096)
-- **핵심 원인**: 분류기 P(extreme) 평균 0.097, P(>0.5)=1.0% → 극값에 너무 보수적으로 반응
-
-### DART + P_extreme 메타 피처 실험 결과 (04.12)
-
-#### P_extreme 메타 피처 (분류기 앙상블)
-- **아이디어**: 극값(지연 큰 샘플) 예측에 특화된 분류기를 훈련 → 그 확률을 피처로 추가
-- **분류기 성능**: AUC 0.8754 (우수)
-- **앙상블 CV MAE**: 8.9089 (기존 최고 8.8674 대비 ❌ +0.0415 악화)
-- **원인 분석**: P_extreme 신호 자체는 강하지만, 이미 GBDT 앙상블이 내부적으로 극값 패턴을 포착 중. 메타 피처 추가는 중복 신호 → 노이즈 효과
-
-#### DART LightGBM
-- **Optuna 탐색**: 20 trials, 2-fold | 최적 DART: 9.0015 (best trial)
-- **5-fold OOF**: 8.9661 (GBDT 앙상블 8.8703 대비 ❌ +0.0958)
-- **DART 앙상블 (가중치 DART:0.561 / CB:0.339 / XGB:0.100)**: 8.9221 ❌
-- **원인 분석**:
-  - DART의 드롭아웃 정규화는 모델이 특정 트리에 과도하게 의존할 때 유효
-  - 이미 잘 튜닝된 GBDT(num_leaves=181, learning_rate=0.02)에서는 추가 정규화 이점 없음
-  - DART n_estimators=734 (낮음) → 충분한 학습 라운드 미확보
-- **결론**: DART는 이 데이터셋에서 GBDT 대비 우위 없음. 향후 재시도 불필요
-
-**핵심 인사이트 (04.12)**: CV→Public 갭(8.87→10.33, Δ~1.46)이 큰 상황. 더 복잡한 앙상블보다 **타깃 변환(sqrt) + 깔끔한 피처**로 일반화 개선이 우선.
-
-## Setup
+## 재현 방법
 
 ```bash
+# 환경 설정
 pip install -r requirements.txt
+
+# 최종 모델 학습 (model34, ~30분)
+python src/run_model34_loss_opt.py
+
+# 최종 블렌드 제출 파일 생성
+python src/blend_m33_m34.py
+
+# v6 실험 (궤적 형상 피처)
+python src/run_model41_traj_fe.py
 ```
+
+> `data/` 디렉토리에 `train.csv`, `test.csv`, `layout_info.csv`, `sample_submission.csv` 배치 필요 (`.gitignore`로 제외됨)

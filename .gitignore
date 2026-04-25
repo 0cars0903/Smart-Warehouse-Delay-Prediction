@@ -40,6 +40,13 @@ Thumbs.db
 docs/*_ckpt/
 catboost_info/
 
+# docs 내 바이너리/임시 파일
+docs/*.pkl
+docs/*.feather
+docs/*.npz
+docs/_v4_*
+docs/meta_inputs*
+
 # Temporary analysis outputs
 eda_outputs/
 project_ratio_convergence.md
@@ -48,3 +55,8 @@ layout_info_analysis_report.md
 # Misc
 *.log
 .env
+
+# 내부 작업 파일
+CLAUDE.md
+docs/COWORK_GUIDELINES.md
+docs/github_upload_checklist.md
