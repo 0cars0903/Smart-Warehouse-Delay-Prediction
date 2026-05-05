@@ -2,6 +2,8 @@
 
 > AMR 기반 스마트 물류창고 운영 데이터를 활용한 출고 지연 시간 예측  
 > [Dacon 공식 대회 페이지](https://dacon.io/competitions/official/236696/overview/description) | 기간: 2026.04.01 ~ 2026.05.04
+>
+> 🏁 **대회 종료 — 최종 Private 20등 / Public 9.8073** | [📒 Notion Analysis Board](https://www.notion.so/0cars/AI-3380654986f28030a4b2d3abcdb08d07)
 
 ---
 
@@ -9,12 +11,14 @@
 
 | 지표 | 값 |
 |---|---|
-| **Public LB (최고)** | **9.7901** |
+| **최종 제출 (Public)** | **9.8073** |
+| **최종 순위 (Private)** | **20등** |
+| **Public LB (실험 최고)** | 9.7901 (model47+q95, 미선택) |
 | **1위 점수** | 9.6992 |
-| **1위 대비 갭** | 0.0909 |
 | **평가 지표** | MAE (Mean Absolute Error) |
 | **총 실험 횟수** | 57회 이상 (제출 기준) / 80회+ (CV 전용 포함) |
 | **총 실험 기간** | 34일 |
+| **저장소** | 5-Track 구조 (Notion Analysis Board와 1:1 매핑) |
 
 ---
 
@@ -394,3 +398,30 @@ python 03_Model/v5_loss/run_model41_traj_fe.py
 ```
 
 > `data/` 디렉토리에 `train.csv`, `test.csv`, `layout_info.csv`, `sample_submission.csv` 배치 필요 (`.gitignore`로 제외됨)
+
+---
+
+## 대회 회고 (Retrospective)
+
+### 잘된 점
+- **시나리오 단위 분산 분석**으로 v1→v2 구조적 돌파(Public 10.22→9.95) 달성
+- pred_std·배율(Public/CV) 등 부수 지표를 모니터링 체계에 편입해 CV 함정에서 벗어남
+- 모든 실험을 Notion Analysis Board(A-EDA / B-FE / C-Model / D-Submit) + Approach Log에 이중 기록 → 회고·반복 실험 효율 향상
+
+### 아쉬운 점
+- 극값(target≥80) 외삽 한계를 이론적으론 진단했지만 후처리 12종 모두 실패 → 1위와의 갭 0.108을 좁히지 못함
+- CV 최고(9.7901, model47+q95)를 최종 제출본으로 선택하지 않음 — 안정성 우선 판단으로 9.8073 제출
+- v6 Quantile/Multi-Q 메타 다양성은 q95 단독에서만 작동 — 추가 quantile은 메타 과적합 유발
+
+### 다음에 가져갈 교훈
+1. **CV 악화 ≠ 실패**: Public 검증 없이 피처/loss를 조기 폐기하지 말 것 (model29A 사례)
+2. **OOF vs Test 분포 불일치**가 시퀀스/비트리 모델 스태킹의 함정 (model27, model45 사례)
+3. **로컬 최적에 도달했을 때**는 동일 파이프라인 변형보다 **피처 공간의 질적 전환**이 필요 (v5 6전략 전패 → v6 sc_agg 확장으로 재돌파)
+
+---
+
+## 종료 시점 (2026-05-05)
+
+- 🏁 대회 마감 (Private 20등 확정)
+- 📦 본 저장소를 **Notion 5-Track 구조**(00_Guide / 01_EDA / 02_FE / 03_Model / 04_Submit)로 재배치 완료
+- 🔒 신규 실험 없음 — 아카이브 모드. 모든 스크립트는 sys.path 자동 패치로 그대로 재현 가능
