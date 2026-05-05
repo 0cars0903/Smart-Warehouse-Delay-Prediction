@@ -1,0 +1,361 @@
+======================================================================
+§1 Tail Driver Decomposition EDA Report
+생성: 2026-04-22 01:16
+기준: model33 Public 9.8223 / 1위 9.69923 / 갭 0.123
+======================================================================
+
+[타겟 기본 통계]
+  mean=18.96, median=9.03, std=27.35
+  skew=5.68, kurtosis=64.05
+  min=0.00, max=715.86
+  [0,5): n=75049 (30.0%)
+  [5,40): n=142705 (57.1%)
+  [40,80): n=25852 (10.3%)
+  [80,800): n=6394 (2.6%)
+
+  수치 피처: 203개, 범주 피처: 9개
+
+======================================================================
+§1-1. 수치 피처 KS-test: [0,5) vs [80,800)
+======================================================================
+
+총 203개 피처 검사, p < 0.001 & KS > 0.3 필터:
+피처                                           KS  Cohen_d   mean_low   mean_ext
+--------------------------------------------------------------------------------
+order_inflow_15m_roll10_mean              0.613   +1.656     59.526    153.850
+order_inflow_15m_roll10_std               0.606   +1.502     15.018     43.202
+order_inflow_15m_roll5_mean               0.603   +1.584     59.045    151.678
+order_inflow_15m_roll3_mean               0.588   +1.503     58.759    150.814
+congestion_score_roll10_mean              0.573   +0.929      0.427     13.479
+order_inflow_15m_lag6                     0.573   +1.458     57.488    153.505
+order_inflow_15m_lag4                     0.572   +1.419     58.029    152.329
+congestion_score_roll10_std               0.571   +0.958      0.447      6.639
+order_inflow_15m_lag3                     0.569   +1.400     58.571    151.950
+order_inflow_15m_lag5                     0.569   +1.432     57.814    152.100
+order_inflow_15m_roll5_std                0.568   +1.306     14.156     40.255
+order_inflow_15m_lag2                     0.564   +1.386     58.716    151.040
+max_zone_density_roll10_std               0.562   +1.032      0.003      0.050
+pack_utilization                          0.559   +1.024      0.376      0.747
+max_zone_density_roll10_mean              0.559   +0.980      0.003      0.091
+order_inflow_15m                          0.558   +1.389     57.901    149.754
+order_pressure                            0.557   +1.047      7.798     29.763
+order_inflow_15m_lag1                     0.556   +1.374     58.418    149.413
+congestion_score_roll5_mean               0.540   +0.884      0.427     13.273
+max_zone_density_roll5_mean               0.535   +0.936      0.003      0.090
+congestion_score_roll5_std                0.531   +0.824      0.389      4.607
+max_zone_density_roll5_std                0.530   +0.931      0.003      0.039
+congestion_score_roll3_mean               0.514   +0.863      0.430     13.324
+max_zone_density_roll3_mean               0.510   +0.915      0.003      0.090
+congestion_x_order                        0.507   +0.714     62.484   1979.292
+congestion_score                          0.500   +0.857      0.408     13.419
+max_zone_density                          0.490   +0.889      0.003      0.089
+congestion_score_lag1                     0.486   +0.850      0.417     13.467
+order_inflow_15m_roll3_std                0.481   +1.009     11.858     33.040
+congestion_score_lag2                     0.479   +0.844      0.423     13.436
+max_zone_density_lag1                     0.478   +0.880      0.003      0.091
+congestion_score_lag3                     0.478   +0.835      0.409     13.111
+congestion_score_lag6                     0.476   +0.799      0.370     12.172
+congestion_score_lag4                     0.472   +0.819      0.385     12.690
+congestion_score_lag5                     0.468   +0.806      0.379     12.348
+max_zone_density_lag3                     0.468   +0.863      0.003      0.087
+robot_idle                                0.467   -1.164     37.120     15.109
+max_zone_density_lag2                     0.467   +0.865      0.003      0.089
+max_zone_density_lag6                     0.467   +0.828      0.003      0.080
+max_zone_density_lag4                     0.463   +0.844      0.003      0.084
+robot_charging                            0.463   +0.834      0.443      8.766
+battery_deficit                           0.461   +0.744      0.207      6.162
+sku_concentration                         0.460   +1.200      0.348      0.557
+max_zone_density_lag5                     0.459   +0.834      0.003      0.081
+robot_idle_lag1                           0.457   -1.131     37.104     15.537
+low_battery_ratio_roll10_std              0.456   +0.923      0.002      0.065
+robot_idle_roll3_mean                     0.455   -1.136     37.103     15.809
+robot_idle_roll5_mean                     0.453   -1.139     37.122     15.983
+low_battery_ratio_roll10_mean             0.452   +0.897      0.001      0.155
+max_zone_density_roll3_std                0.450   +0.798      0.002      0.030
+congestion_score_roll3_std                0.449   +0.689      0.304      3.142
+robot_idle_roll10_mean                    0.449   -1.145     37.132     16.092
+robot_idle_lag2                           0.449   -1.112     37.140     15.850
+robot_utilization                         0.447   +1.015      0.248      0.495
+robot_availability                        0.447   +1.016      0.241      0.481
+low_battery_ratio_roll5_mean              0.447   +0.894      0.002      0.169
+robot_idle_lag3                           0.444   -1.099     37.218     16.138
+robot_idle_lag4                           0.442   -1.099     37.352     16.297
+low_battery_ratio_roll5_std               0.442   +0.838      0.002      0.041
+robot_idle_lag6                           0.439   -1.102     37.524     16.456
+robot_idle_lag5                           0.436   -1.090     37.441     16.551
+low_battery_ratio_roll3_mean              0.434   +0.906      0.003      0.178
+urgent_order_ratio                        0.433   +1.024      0.074      0.178
+low_battery_ratio                         0.429   +0.951      0.004      0.194
+orders_per_active_robot                   0.421   +0.601      4.053     10.214
+low_battery_ratio_lag1                    0.413   +0.918      0.003      0.183
+low_battery_ratio_lag2                    0.401   +0.893      0.003      0.177
+low_battery_ratio_lag3                    0.390   +0.870      0.002      0.170
+robot_active                              0.383   +0.848     11.065     21.490
+low_battery_ratio_lag4                    0.381   +0.853      0.002      0.166
+low_battery_ratio_roll3_std               0.376   +0.741      0.002      0.027
+unique_sku_15m                            0.373   +0.711     67.114    132.601
+low_battery_ratio_lag5                    0.371   +0.837      0.002      0.161
+low_battery_ratio_lag6                    0.367   +0.833      0.001      0.160
+battery_mean_roll10_std                   0.358   +0.886      1.631      5.093
+battery_mean_roll10_mean                  0.358   -1.001     63.759     52.768
+battery_mean                              0.352   -1.034     61.205     48.923
+battery_mean_lag1                         0.339   -0.993     61.459     49.686
+battery_mean_roll5_mean                   0.336   -0.970     62.574     51.322
+battery_mean_roll3_mean                   0.334   -0.974     62.015     50.524
+heavy_item_ratio                          0.329   +0.792      0.145      0.228
+robot_idle_roll10_std                     0.327   +0.740      2.749      5.366
+outbound_truck_wait_min                   0.326   +0.761     13.359     18.820
+battery_mean_lag2                         0.325   -0.950     61.743     50.466
+battery_mean_roll5_std                    0.321   +0.722      0.939      2.828
+battery_mean_lag3                         0.316   -0.919     62.041     51.140
+battery_mean_lag4                         0.307   -0.894     62.344     51.700
+battery_mean_lag5                         0.304   -0.880     62.643     52.092
+battery_mean_lag6                         0.303   -0.873     62.971     52.446
+battery_std                               0.303   +0.808     17.109     20.022
+cold_chain_ratio                          0.303   +0.711      0.075      0.134
+
+통계적으로 유의한 피처 수: 91
+상위 10: ['order_inflow_15m_roll10_mean', 'order_inflow_15m_roll10_std', 'order_inflow_15m_roll5_mean', 'order_inflow_15m_roll3_mean', 'congestion_score_roll10_mean', 'order_inflow_15m_lag6', 'order_inflow_15m_lag4', 'congestion_score_roll10_std', 'order_inflow_15m_lag3', 'order_inflow_15m_lag5']
+
+======================================================================
+§1-2. 범주형 피처 Lift: P(cat|tail) / P(cat|non-tail)
+======================================================================
+
+tail 기준: target >= 50 (전체 tail 비율: 0.080)
+
+Lift >= 2.0 인 범주:
+피처                                    값       n  tail_rate   lift
+----------------------------------------------------------------------
+pack_station_count                  2.0   13375      0.225   2.82
+blocked_path_15m                   11.0      78      0.205   2.58
+near_collision_15m                  6.0     427      0.204   2.56
+forklift_active_count               9.0     899      0.202   2.55
+blocked_path_15m                    7.0     977      0.188   2.37
+near_collision_15m                  4.0    2954      0.183   2.30
+near_collision_15m                  2.0   11409      0.181   2.28
+pack_station_count                  3.0    8875      0.179   2.25
+blocked_path_15m                    3.0    5299      0.179   2.25
+near_collision_15m                  7.0     118      0.178   2.24
+fault_count_15m                     3.0    3749      0.177   2.23
+forklift_active_count              10.0      85      0.176   2.22
+blocked_path_15m                    4.0    3334      0.176   2.22
+blocked_path_15m                    2.0    8912      0.176   2.21
+forklift_active_count               8.0    3863      0.176   2.21
+near_collision_15m                  3.0    6071      0.176   2.21
+blocked_path_15m                    6.0    1467      0.176   2.21
+fault_count_15m                     2.0    7856      0.174   2.19
+blocked_path_15m                    5.0    2280      0.173   2.17
+blocked_path_15m                    8.0     607      0.170   2.13
+near_collision_15m                  5.0    1249      0.168   2.11
+
+Lift >= 2 범주 수: 21
+Lift >= 3 범주 수: 0
+
+======================================================================
+§1-3. Mutual Information: 피처 vs tail 여부
+======================================================================
+
+상위 30 MI 피처:
+  순위 피처                                             MI     유형
+-----------------------------------------------------------------
+   1 sku_concentration                          0.1212    NUM
+   2 congestion_score_roll10_mean               0.0388    NUM
+   3 order_inflow_15m_roll10_mean               0.0382    NUM
+   4 max_zone_density_roll10_mean               0.0381    NUM
+   5 max_zone_density_roll10_std                0.0380    NUM
+   6 order_inflow_15m_roll5_mean                0.0371    NUM
+   7 congestion_score_roll10_std                0.0365    NUM
+   8 congestion_score_roll5_mean                0.0364    NUM
+   9 order_inflow_15m_roll10_std                0.0352    NUM
+  10 order_inflow_15m_roll3_mean                0.0346    NUM
+  11 congestion_score_roll3_mean                0.0346    NUM
+  12 max_zone_density_roll5_mean                0.0338    NUM
+  13 low_battery_ratio_roll10_mean              0.0331    NUM
+  14 robot_idle_roll10_mean                     0.0328    NUM
+  15 low_battery_ratio_roll5_mean               0.0325    NUM
+  16 low_battery_ratio_roll10_std               0.0322    NUM
+  17 robot_idle                                 0.0321    NUM
+  18 low_battery_ratio_roll3_mean               0.0317    NUM
+  19 max_zone_density_roll3_mean                0.0314    NUM
+  20 congestion_score_roll5_std                 0.0307    NUM
+  21 max_zone_density_roll5_std                 0.0306    NUM
+  22 robot_idle_roll5_mean                      0.0304    NUM
+  23 robot_idle_roll3_mean                      0.0299    NUM
+  24 low_battery_ratio_roll5_std                0.0287    NUM
+  25 order_inflow_15m_roll5_std                 0.0285    NUM
+  26 robot_idle_lag1                            0.0278    NUM
+  27 battery_mean_roll10_mean                   0.0272    NUM
+  28 battery_mean_roll10_std                    0.0270    NUM
+  29 order_inflow_15m_lag3                      0.0270    NUM
+  30 order_inflow_15m_lag4                      0.0269    NUM
+
+수치 피처 평균 MI: 0.0147 (상위10 평균: 0.0454)
+범주 피처 평균 MI: 0.0052 (상위10 평균: 0.0052)
+
+======================================================================
+§1-4. SHAP 분석: [80,800) 구간 기여도 상위 피처
+======================================================================
+
+[80,800) SHAP 상위 20 (tail 구간에서 특히 중요한 피처):
+  순위 피처                                        SHAP_tail   SHAP_all   ratio
+------------------------------------------------------------------------------
+   1 pack_station_count                           0.2455     0.0048   50.88
+   2 pack_utilization                             0.2405     0.0030   81.26
+   3 congestion_score_roll10_mean                 0.1731     0.0205    8.44
+   4 max_zone_density_roll10_mean                 0.1519     0.0017   91.57
+   5 order_inflow_15m_roll10_mean                 0.0912     0.0019   47.62
+   6 low_battery_ratio_roll10_mean                0.0744     0.0131    5.69
+   7 max_zone_density                             0.0659     0.0106    6.20
+   8 order_inflow_15m_roll10_std                  0.0564     0.0071    7.96
+   9 robot_idle                                   0.0403     0.0452    0.89
+  10 congestion_score                             0.0381     0.0106    3.58
+  11 cold_chain_ratio                             0.0281     0.0045    6.26
+  12 orders_per_active_robot                      0.0280     0.0053    5.28
+  13 ts_idx                                       0.0249     0.0006   43.23
+  14 layout_compactness                           0.0248     0.0012   21.38
+  15 order_inflow_15m_roll5_mean                  0.0236     0.0027    8.68
+  16 outbound_truck_wait_min                      0.0204     0.0005   44.43
+  17 robot_idle_roll10_std                        0.0200     0.0001  230.29
+  18 zone_dispersion                              0.0196     0.0001  192.85
+  19 avg_trip_distance_roll10_mean                0.0185     0.0428    0.43
+  20 sku_concentration                            0.0171     0.0746    0.23
+
+tail 특이 피처 (SHAP ratio > 1.5): 122개
+  robot_idle_roll10_std                    ratio=230.29
+  zone_dispersion                          ratio=192.85
+  avg_items_per_order                      ratio=104.74
+  max_zone_density_roll10_mean             ratio=91.57
+  pack_utilization                         ratio=81.26
+  pack_station_count                       ratio=50.88
+  order_inflow_15m_roll10_mean             ratio=47.62
+  outbound_truck_wait_min                  ratio=44.43
+  ts_idx                                   ratio=43.23
+  low_battery_ratio_roll3_mean             ratio=41.50
+  return_order_ratio                       ratio=38.37
+  bulk_order_ratio                         ratio=27.25
+  storage_density_pct                      ratio=27.21
+  max_zone_density_lag1                    ratio=22.58
+  layout_compactness                       ratio=21.38
+
+[80,800) SHAP 방향 (양수=delay 증가, 음수=delay 감소):
+  delay 증가 방향 상위 10:
+    pack_utilization                         +0.2241
+    pack_station_count                       +0.2167
+    congestion_score_roll10_mean             +0.1041
+    max_zone_density_roll10_mean             +0.0885
+    order_inflow_15m_roll10_mean             +0.0741
+    order_inflow_15m_roll10_std              +0.0460
+    max_zone_density                         +0.0443
+    congestion_score                         +0.0270
+    orders_per_active_robot                  +0.0223
+    robot_idle_roll10_std                    +0.0171
+  delay 감소 방향 상위 10:
+    task_reassign_15m                        -0.0002
+    robot_idle_lag2                          -0.0003
+    congestion_score_roll3_std               -0.0003
+    ts_cos                                   -0.0009
+    robot_idle_lag1                          -0.0015
+    low_battery_ratio_roll10_mean            -0.0019
+    max_zone_density_roll3_mean              -0.0021
+    robot_idle_roll5_mean                    -0.0022
+    robot_idle_roll3_mean                    -0.0023
+    robot_idle                               -0.0086
+
+======================================================================
+§1-5. 범주형 조합 Lift (2-way, 3-way)
+======================================================================
+
+low-cardinality 범주 (8개): ['blocked_path_15m', 'near_collision_15m', 'fault_count_15m', 'day_of_week', 'forklift_active_count', 'layout_type', 'charger_count', 'emergency_exit_count']...
+
+[2-way 조합] Lift >= 3.0:
+조합                                                      n  tail_rate   lift
+------------------------------------------------------------------------------
+forklift_active_count=9.0 × charger_count=6.0          66      0.424   5.34
+forklift_active_count=9.0 × charger_count=4.0          34      0.382   4.81
+blocked_path_15m=7.0 × charger_count=2.0               77      0.364   4.57
+blocked_path_15m=8.0 × charger_count=13.0              58      0.345   4.34
+charger_count=11.0 × emergency_exit_count=8           500      0.324   4.07
+near_collision_15m=6.0 × emergency_exit_count=10       47      0.319   4.01
+near_collision_15m=6.0 × day_of_week=5.0               54      0.315   3.96
+blocked_path_15m=6.0 × charger_count=13.0             135      0.311   3.91
+blocked_path_15m=6.0 × forklift_active_count=1.0       52      0.308   3.87
+near_collision_15m=4.0 × forklift_active_count=1.0    132      0.303   3.81
+near_collision_15m=6.0 × fault_count_15m=0.0           43      0.302   3.80
+blocked_path_15m=2.0 × near_collision_15m=6.0          37      0.297   3.74
+day_of_week=5.0 × forklift_active_count=9.0            71      0.296   3.72
+blocked_path_15m=8.0 × emergency_exit_count=4          61      0.295   3.71
+near_collision_15m=6.0 × forklift_active_count=7.0     31      0.290   3.65
+forklift_active_count=9.0 × emergency_exit_count=7    107      0.280   3.53
+blocked_path_15m=7.0 × forklift_active_count=7.0      104      0.279   3.51
+blocked_path_15m=6.0 × forklift_active_count=8.0       61      0.279   3.50
+near_collision_15m=6.0 × emergency_exit_count=4        47      0.277   3.48
+blocked_path_15m=7.0 × charger_count=8.0               59      0.271   3.41
+
+Lift >= 3 조합 수: 56
+
+======================================================================
+§1-6. 시나리오 레벨 극단값 패턴
+======================================================================
+
+시나리오 분류:
+  normal              :  6679개, 평균 target = 7.16
+  high_scenario       :  1969개, 평균 target = 29.19
+  extreme_scenario    :  1352개, 평균 target = 62.37
+
+극단 시나리오 (1352개) 통계:
+  mean_target: 62.37 ± 25.14
+  max_target:  118.18 ± 94.60
+  tail_frac:   0.548
+
+극단 시나리오 layout 분포 (상위 10):
+  layout=WH_073: 0.019 (극단), total=1125
+  layout=WH_049: 0.016 (극단), total=1125
+  layout=WH_098: 0.014 (극단), total=1125
+  layout=WH_217: 0.014 (극단), total=1125
+  layout=WH_051: 0.014 (극단), total=1125
+  layout=WH_279: 0.013 (극단), total=1125
+  layout=WH_066: 0.013 (극단), total=1125
+  layout=WH_215: 0.012 (극단), total=1125
+  layout=WH_140: 0.012 (극단), total=1125
+  layout=WH_261: 0.011 (극단), total=1125
+
+GroupKFold 5-fold 극단 시나리오 분포:
+  Fold 1: val 시나리오=2000, 극단=268 (13.4%)
+  Fold 2: val 시나리오=2000, 극단=261 (13.1%)
+  Fold 3: val 시나리오=2000, 극단=272 (13.6%)
+  Fold 4: val 시나리오=2000, 극단=290 (14.5%)
+  Fold 5: val 시나리오=2000, 극단=261 (13.1%)
+
+======================================================================
+§1-7. 큐잉이론 Physics-informed Feature 후보
+======================================================================
+
+후보 피처 7종:
+피처                                     전체 corr  tail corr [80+] corr   mean_low   mean_ext   sep_σ
+----------------------------------------------------------------------------------------------------
+littles_law_W                           0.0948    -0.0537    -0.1281      0.003      0.025  +0.332
+mm1_wait                                0.0276     0.0884     0.0669      1.820      3.756  +0.170
+stress_product                          0.2483    -0.1792    -0.1859      0.010      3.689  +0.601
+effective_robots                        0.1626     0.2101     0.1743     10.109     20.291  +0.792
+demand_capacity_ratio                   0.1054    -0.0928    -0.1262      3.606      6.873  +0.493
+bottleneck_geometric                    0.2532    -0.1793    -0.1728      0.116      4.346  +0.616
+saturated_congestion                    0.0717    -0.0521    -0.0476      5.076     28.965  +0.275
+
+======================================================================
+§1-FINAL. 종합 판정: 수치 vs 범주 기여도
+======================================================================
+
+[KS-test] 유의한 수치 피처: 91개 (KS > 0.3)
+[Lift] lift >= 3 범주: 0개
+[MI] 상위 10 피처: ['sku_concentration', 'congestion_score_roll10_mean', 'order_inflow_15m_roll10_mean', 'max_zone_density_roll10_mean', 'max_zone_density_roll10_std', 'order_inflow_15m_roll5_mean', 'congestion_score_roll10_std', 'congestion_score_roll5_mean', 'order_inflow_15m_roll10_std', 'order_inflow_15m_roll3_mean']
+[SHAP] tail 구간 상위 10: ['pack_station_count', 'pack_utilization', 'congestion_score_roll10_mean', 'max_zone_density_roll10_mean', 'order_inflow_15m_roll10_mean', 'low_battery_ratio_roll10_mean', 'max_zone_density', 'order_inflow_15m_roll10_std', 'robot_idle', 'congestion_score']
+[Combo] lift >= 3 조합: 56개
+
+판정:
+  → 수치 피처의 연속적 극값이 tail의 주요 구동 인자
+  → SMOGN/연속 오버샘플링 + 비대칭 loss가 적절한 전략
+
+→ 다음 단계: §3 Loss ablation + §2 Physics-informed FE 실험 설계
+
+
+총 소요: 9.6분

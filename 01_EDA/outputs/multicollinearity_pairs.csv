@@ -1,0 +1,5 @@
+feature_1,feature_2,correlation
+battery_mean,low_battery_ratio,-0.934
+robot_charging,charge_queue_length,0.9167
+robot_charging,low_battery_ratio,0.8594
+charge_queue_length,avg_charge_wait,0.8566

@@ -9,9 +9,9 @@
 
 | 지표 | 값 |
 |---|---|
-| **Public LB (최고)** | **9.8073** |
+| **Public LB (최고)** | **9.7901** |
 | **1위 점수** | 9.6992 |
-| **1위 대비 갭** | 0.108 |
+| **1위 대비 갭** | 0.0909 |
 | **평가 지표** | MAE (Mean Absolute Error) |
 | **총 실험 횟수** | 57회 이상 (제출 기준) / 80회+ (CV 전용 포함) |
 | **총 실험 기간** | 34일 |
@@ -71,8 +71,8 @@ v5에서 메가블렌드/CB메타/피처선택/pseudo-label/multi-seed/KNN후처
 ──────────────────────────────────────────────────────────────
  최종 제출: Blend
 ──────────────────────────────────────────────────────────────
-  model33 × 0.30  +  model34 × 0.70
-  → Public LB: 9.8073  🏆
+  model45c_q7_q95 (model34 6모델 + LGBM Quantile q=0.95, 7모델 스태킹)
+  → Public LB: 9.7931  🏆
 ```
 
 ---
@@ -99,55 +99,69 @@ v5에서 메가블렌드/CB메타/피처선택/pseudo-label/multi-seed/KNN후처
 
 ## 프로젝트 구조
 
+> Notion Analysis Board(A-EDA / B-FE / C-Model / D-Submit / G-Guide)와 1:1 매핑되는 5-Track 구조.
+
 ```
 Smart-Warehouse-Delay-Prediction/
 ├── data/                              # 원본 데이터 (.gitignore)
-├── notebooks/
-│   ├── 01_EDA.ipynb                   # 탐색적 데이터 분석 (시각화 8종)
-│   ├── 02_Baseline_Model.ipynb        # LightGBM 베이스라인
+├── submissions/                       # 제출 CSV 누적 (대용량, gitignore 권장)
+│
+├── 00_Guide/                          # G-대회 안내
+│   ├── competition_plan.md            # 대회 전략 계획서
+│   ├── daily_schedule.md              # 일일 스케줄
+│   ├── domain_knowledge.md            # 도메인 지식
+│   ├── layout_info_utility_structured.md
+│   ├── llm_insight_prompt.md
+│   └── github_upload_checklist.md
+│
+├── 01_EDA/                            # A-EDA 분석 내용
+│   ├── 01_EDA.ipynb                   # 탐색적 분석 (시각화 8종)
 │   ├── 03_CV_Strategy.ipynb           # GroupKFold vs KFold 검증
+│   ├── scripts/
+│   │   ├── eda_tail_driver.py         # 극값 시나리오 특성 분석
+│   │   ├── eda_loss_ablation.py       # 손실함수별 구간 MAE 비교
+│   │   ├── eda_symbolic_physics.py
+│   │   ├── analysis_model28A_axis3.py # 극값 구간 정밀 분석 (MAE 기여도/headroom)
+│   │   └── run_additional_eda.py
+│   ├── reports/                       # EDA_FULL_REPORT.md, eda_*_report.txt, layout_info_analysis_report.md
+│   └── outputs/                       # EDA 시각화 PNG (48종)
+│
+├── 02_FE/                             # B-피처 엔지니어링
 │   ├── 04_Log_Transform.ipynb         # log1p 변환 실험
 │   ├── 05_TS_Features.ipynb           # 타임슬롯 피처
 │   ├── 06_Feature_Engineering.ipynb   # Lag + Rolling + Domain FE
-│   └── 07_Ensemble_Optuna.ipynb       # Optuna 3모델 앙상블
-├── src/
-│   ├── feature_engineering.py         # 공통 FE 파이프라인 (build_features)
-│   │
-│   ├── # ── v1 실험 시리즈 ──
-│   ├── run_exp_model{1-12}_*.py       # 모델 다양성 탐색 (Tweedie/Quantile/Stacking/HGB/MLP 등)
-│   ├── run_exp_fe_v{2-4}_*.py         # FE 확장 ablation
-│   │
-│   ├── # ── v2 시나리오 집계 시리즈 ──
-│   ├── run_exp_model2{1-4}_*.py       # sc_agg 5모델 → Optuna → 메타 강화 실험
-│   │
-│   ├── # ── v3 비율 피처 + 손실함수 시리즈 ──
-│   ├── run_exp_model27_hybrid_stacking.py   # 시퀀스 모델 7모델 스태킹 (실패 케이스)
-│   ├── run_exp_v3_model28A_layout_robust.py # 비율 피처 Tier1 (9.8525 돌파)
-│   ├── run_exp_v3_model29A_ratio_expand.py  # 비율 피처 Tier2 (9.8312)
-│   ├── run_exp_v3_model30_combined.py       # Tier2 + Optuna 결합 (9.8279)
-│   ├── run_model33_asymmetric.py            # Asymmetric MAE α=1.5 (9.8223)
-│   ├── run_model34_loss_opt.py              # TW1.5 + Asym α=2.0 (9.8078)
-│   ├── blend_m33_m34.py                    # 최종 블렌드 (9.8073 🏆)
-│   │
-│   ├── # ── 분석 스크립트 ──
-│   ├── analysis_model28A_axis3.py     # 극값 구간 정밀 분석 (MAE 기여도/headroom)
-│   ├── eda_tail_driver.py             # 극값 시나리오 특성 분석
-│   ├── eda_loss_ablation.py           # 손실함수별 구간 MAE 비교
-│   │
-│   ├── # ── v4 실험 (전부 실패) ──
-│   ├── run_v4_extreme_2stage.py       # 2-Stage 극값 전략
-│   ├── run_v4_postprocess_*.py        # 후처리 3종 (Isotonic/IF/BC)
-│   │
-│   └── # ── v6 (진행 중) ──
-│       └── run_model41_traj_fe.py     # 궤적 형상 피처 29종
-├── docs/
-│   ├── v3_strategy_report.md          # 시퀀스 모델 전략 분석
-│   ├── v6_strategy.md                 # 궤적 형상 피처 전략 문서
-│   └── *.png                          # EDA 및 실험 시각화
+│   ├── feature_engineering.py         # ✅ 공통 FE 파이프라인 (build_features)
+│   ├── experiments/                   # FE 확장 ablation (v1~v4)
+│   │   └── run_exp_fe_v{1-4}_*.py
+│   ├── reports/                       # project_ratio_convergence.md, feature_importance_exp3.csv
+│   └── outputs/                       # FE 진행 시각화 PNG
+│
+├── 03_Model/                          # C-모델링
+│   ├── 02_Baseline_Model.ipynb        # LightGBM 베이스라인
+│   ├── 07_Ensemble_Optuna.ipynb       # Optuna 3모델 앙상블
+│   ├── baseline/                      # 초기 baseline + ablation (run_ensemble*, run_dart, run_2stage 등 17종)
+│   ├── v1_stacking/                   # model1~12: Tweedie/Quantile/Stacking/HGB/MLP/Poisson
+│   ├── v2_scenario/                   # model21~27: 시나리오 집계 5~7모델 (+ step1 helpers)
+│   ├── v3_ratio/                      # model28~30: Layout-capacity 비율 피처
+│   ├── v4_extreme/                    # 2-Stage 극값 + 후처리 3종 (전부 실패)
+│   ├── v5_loss/                       # model31~45: Asymmetric/TW1.5/k-fold/LDS/Multi-Q (17종)
+│   ├── v6_final/                      # model46~48: SC_AGG 확장 + Layout 교호작용 (10종)
+│   ├── reports/                       # model_selection_report.md, v3_strategy_report.md, v6_strategy.md
+│   └── outputs/                       # cv_strategy_comparison.png
+│
+├── 04_Submit/                         # D-실험·제출
+│   ├── blends/                        # blend_m33_m34, blend_m34_internal, blend_mega, blend_q85_m34bd
+│   └── ablation_results/              # ablation/transform/optuna 결과 CSV
+│
 ├── .gitignore
 ├── requirements.txt
 └── README.md
 ```
+
+**최종 SOTA 경로** (Public 9.8073, Private 20등):
+1. `02_FE/feature_engineering.py` → 공통 FE 빌드
+2. `03_Model/v5_loss/run_model33_asymmetric.py` (9.8223) + `run_model34_loss_opt.py` (9.8078)
+3. `04_Submit/blends/blend_m33_m34.py` → 최종 블렌드 🏆
 
 ---
 
@@ -228,9 +242,59 @@ Smart-Warehouse-Delay-Prediction/
 | 36 | 04.22 | **6모델 + Asymmetric MAE (α=1.5)** | **8.4756** | 429 | **9.8223 🏆** | |
 | 37 | 04.22 | **TW1.5 교체 (TW1.8→TW1.5)** | **8.4720** | 429 | 9.8144 | [80+] MAE 81.14 |
 | 38 | 04.22 | **6모델 + Asymmetric MAE (α=2.0)** | 8.4803 | 429 | **9.8078 🏆** | 배율 1.1565 역대 최저 |
-| 39 | 04.22 | **blend model33 × model34 (w=0.3:0.7)** | — | — | **9.8073 🏆** | **최종 최고 제출** |
+| 39 | 04.22 | **blend model33 × model34 (w=0.3:0.7)** | — | — | **9.8073 🏆** | |
+| 40 | 04.27 | model34_7full (Asym α=1.5+2.0 동시) | 8.4783 | 9.8058 | — | 미제출분 제출 |
+| 41 | 04.27 | blend_m34bd_b70 (Config B×0.7 + D×0.3) | — | 9.8056 | — | |
+| 42 | 04.27 | **blend_m34bd_b60 (Config B×0.6 + D×0.4)** | — | **9.8053** | — | |
+| 43 | 04.28 | GroupKFold k=3 (6모델 재학습) | 8.4934 | 9.8119 | 1.1553 | 배율 역대 최저 ↑ but CV 열위 |
+| 44 | 04.28 | GroupKFold k=5 (6모델 재학습) | 8.4806 | 9.8356 | 1.1598 | k=5 재현 — 기준 대비 열위 |
+| 45 | 04.28 | **GroupKFold k=10 (6모델 재학습)** | **8.4554** | 9.8124 | 1.1603 | **CV 역대 최고 🏆** but 배율 최악 |
+| 46 | 04.29 | LDS sample_weight 6모델 재학습 (전략A) | 8.5043 | 9.8952 ❌ | 1.1593 | LDS 역효과 — 극값은 피처 외삽 한계 |
+| 47 | 04.29 | **7모델 스태킹 + LGBM Quantile q=0.85 (전략C)** | **8.4735** | **9.8048 🏆** | **1.1571** | **✅ CV + Public 동시 최고** |
+| 48 | 04.29 | 7모델 스태킹 + Quantile q=0.90 | 8.4740 | — | — | CV q85 대비 +0.0005 |
+| 49 | 04.29 | **7모델 스태킹 + Quantile q=0.95** | **8.4684** | **9.7931 🏆** | **1.1565** | **✅ CV + Public 동시 최고 🏆** |
 
-> **v3 Public 최고**: **9.8073** (blend_m33m34_w80) | **1위 대비 갭**: 0.108
+> **v3+v6 Public 최고**: **9.7931** (model45c_q7_q95) | **1위 대비 갭**: **0.0939**
+>
+> **k-fold 실험 결론**: k↑ → CV↓(좋아짐) but 배율↑(나빠짐). k=10 CV 신기록(8.4554)에도 Public 9.8124로 최고 미달.
+> **LDS 실험 결론**: 극값 문제는 불균형 아닌 피처 외삽 한계 — 가중치 부여는 역효과.
+> **Quantile 기여**: q85가 [80+] pred/actual을 0.605로 높이는 다양성 제공 → 배율 1.1571(역대 최저급) 달성.
+
+---
+
+### v7 시리즈 — FE 확장 (SC_AGG + Layout 교호작용) (2026-04-30)
+
+> **전환 계기**: 대회 데이터 전수 감사 → SC_AGG가 90컬럼 중 18개만 활용. layout_info와의 교호작용 미탐색. 두 방향을 독립 실험(46a/46b/46c) 후 최적 조합 탐색.
+
+| # | 날짜 | 실험 | CV MAE | 피처수 | Public LB | 비고 |
+|---|---|---|---|---|---|---|
+| 50 | 04.30 | model46b: KEY_COLS lag/rolling 확장 (8→10종, +robot_charging/battery_std) | 8.4719 ❌ | 446 | — | KEY_COLS 확장 방향 실패 재확인 |
+| 50 | 04.30 | model46b: KEY_COLS lag/rolling 확장 (8→10종) | 8.4719 | 446 | 9.8092 ⚠️ | 배율 1.1578 — CV 최악이나 Public 3개 중 최고 (순서 역전) |
+| 51 | 04.30 | model46a: SC_AGG 확장 (18→23컬럼) | 8.4647 | 477 | 9.8097 ⚠️ | 배율 1.1590 — model34 6모델(9.8078) 대비 소폭 악화 |
+| 52 | 04.30 | **model46c: Layout×운영 교호작용 6종 (lx_*)** | **8.4600** | 439 | 9.8126 ❌ | **CV 역대 최고 🏆 but Public 최악** — pred_std=15.90 압축이 원인 |
+| 53 | 04.30 | **model46a(6) + q95 → 7모델 스태킹** | **8.4615** | — | 9.7997 ❌ | CV 역대 최고 🏆 but 배율 1.1611 악화 — 기준(9.7931) 미달 |
+| 54 | 04.30 | model46c(6) + q95 → 7모델 스태킹 | 8.4639 | — | 9.7957 ❌ | 기준 대비 Δ+0.0026 근소 차 미달. 배율 1.1592 |
+| 55 | 04.30 | **model47: SC_AGG(23) + Layout 교호작용(6종) 동시 적용** | 8.4649 | 483 | **9.8063** ✅ | pred_std=16.14, 배율 1.1584 — model34(9.8078) 돌파! |
+| 56 | 04.30 | **model47(6) + q95 → 7모델 스태킹** | **8.4610** | **9.7901 🏆** | **pred_std=16.35 역대 최고 🚀 CV Δ-0.0074 ✅** |
+| 57 | 05.01 | model47(6) + q95 + q85 → 8모델 스태킹 | 8.4593 | 9.7995 ❌ | pred_std=16.47 역대 최고 but CV 개선→Public 악화 역전 |
+| 58 | 05.01 | model47(6) + q95 + q90 → 8모델 스태킹 | 8.4617 | 9.7993 ❌ | pred_std=16.38 — q90 추가도 Public 악화 |
+| 59 | 05.01 | model47(6) + q95 + q90 + q85 → 9모델 스태킹 | 8.4619 | 9.8006 ❌ | pred_std=16.46 — 3 quantile 조합 최악 |
+| 60 | 05.02 | model47(6) + q95 + q70 → 8모델 스태킹 | 8.4577 | 9.7991 ❌ | pred_std=16.59 역대 최고나 Public Δ+0.0090 악화. q70도 동일 실패 패턴 확정 |
+| 61 | 05.01 | model47(6) + q95 + q80 → 8모델 스태킹 | 8.4579 | 미제출 | pred_std=16.32 (기준보다 낮음, q80 단독 다양성 제한) |
+| 62 | 05.01 | model47(6) + q95 + q70 + q85 → 9모델 스태킹 | 8.4606 | 미제출 | pred_std=16.52 — q70+q85 조합, q70 단독보다 열위 |
+| 63 | 05.01 | **model47_addon: +XGB → 7모델+q95** | **8.4573** | 미제출 | ✅ CV Δ-0.0037, pred_std=16.34 — XGB 단독 추가 최우수 |
+| 64 | 05.01 | model47_addon: +asym15 → 7모델+q95 | 8.4581 | 미제출 | CV Δ-0.0029, pred_std=16.20 — asym15 단독 추가 2위 |
+| 65 | 05.01 | model47_addon: +XGB+asym15 → 8모델+q95 | 8.4614 | 미제출 | ❌ CV Δ+0.0004, 조합 시 오히려 열위 |
+| 66 | 05.01 | model47_addon: +DART → 7모델+q95 | 8.4640 | 미제출 | ❌ CV Δ+0.0030, DART 방향 열위 |
+| 67 | 05.01 | model48: ts_ratio×SC_AGG 교호작용 10종 (483+α피처, 6모델) | 8.4705 | 미제출 | ❌ CV Δ+0.0056 악화 + pred_std=16.02 압축 — 방향 종결 |
+| 68 | 05.01 | model48+q95 → 7모델 스태킹 | 8.4662 | 미제출 | ❌ CV Δ+0.0052 악화 + pred_std=16.14 압축 |
+
+> **v7 결론**: 신규 FE(SC_AGG 확장 / Layout 교호작용) 모두 기준(9.7931) 돌파 실패. CV 역대 최고(8.4615)가 Public 개선으로 이어지지 않음 — 배율 악화(1.1565→1.1592~1.1611)가 원인.
+> **핵심 관찰**: 나쁜 base일수록 q95 개선폭이 큼 (46c: Δ-0.0169 > 기준: Δ-0.0147). 그러나 시작점이 낮아 최종 Public이 미달.
+> **model47 관찰**: 두 FE 결합 시 CV=8.4649 (46a=8.4647과 거의 동일), pred_std=16.14 (46c=15.90보다 회복). 두 FE를 합쳐도 상호 시너지가 없음 — 피처 공간이 중복 (lx_wait_per_charger가 SC_AGG avg_charge_wait를 이미 포함)
+> **Multi-Q 최종 결론 (05.02 확정)**: q70 Public=9.7991 (Δ+0.0090 악화) — q85/q90과 동일 패턴. q70 상관(0.9588)이 낮고 메커니즘이 달랐으나 결과는 같음. **q95 단독이 유일 유효 quantile 최종 확정**. pred_std 확장/OOF 다양성이 Public에서 실현 안 되는 구조적 한계 — quantile 추가 방향 완전 종결.
+>
+> **addon/model48 결론 (05.01)**: XGB 추가 시 CV 8.4573 미세 개선(Δ-0.0037)이나 v7 전체 패턴상 Public 기대 불투명. ts_ratio×SC_AGG 교호작용(model48)은 CV+pred_std 동시 악화로 방향 종결.
 
 ---
 
@@ -247,18 +311,44 @@ Smart-Warehouse-Delay-Prediction/
 
 ---
 
-### v6 — 궤적 형상 피처 (2026-04-25~, 진행 중)
+### v6 — 궤적 형상 피처 (2026-04-25, 완료)
 
-| 카테고리 | 피처 수 | 설명 |
+| # | 모델 | CV MAE | Public | 배율 | 비고 |
+|---|---|---|---|---|---|
+| 41 | model41 (궤적 FE 29종, 458피처, 6모델) | 8.4851 | 9.8449 | 1.1602 | ❌ model31(9.8255) 대비 악화 |
+
+**결과 분석**: CV +0.0065 악화 + pred_std 15.73 압축(model31 15.89) → 두 지표 동시 악화로 배율 1.1602 (model31 1.1589보다 높음). model29A 패턴(CV 악화→배율 개선) 미재현. 궤적 피처가 sc_agg 통계와 정보 중복으로 순노이즈 작용.
+
+**피처 구성**:
+| 카테고리 | 피처 수 | 결과 |
 |---|---|---|
-| slope × 8 | 8 | 시나리오 내 선형 추세 기울기 (r=−0.387 실측) |
-| fl_ratio × 8 | 8 | last5 / first5 평균 비율 (성장 방향) |
-| peak_pos × 5 | 5 | 극값 발생 타임슬롯 위치 |
-| above_cnt × 5 | 5 | 고부하 임계값 초과 횟수 |
-| mono × 3 | 3 | 단조증가 비율 (방향 일관성) |
+| slope × 8 | 8 | 개별 기여 확인 불가 |
+| fl_ratio × 8 | 8 | 개별 기여 확인 불가 |
+| peak_pos × 5 | 5 | 개별 기여 확인 불가 |
+| above_cnt × 5 | 5 | 개별 기여 확인 불가 |
+| mono × 3 | 3 | 개별 기여 확인 불가 |
 
-- base: model31 (429피처) → model41 (458피처)
-- 스크립트: `src/run_model41_traj_fe.py`
+**최종 판정**: ❌ 궤적 형상 피처 방향 종결. sc_agg가 이미 동일 정보의 분포 통계를 포함하여 temporal dynamics 추가 표현의 한계 확인. 최고 기준 blend_m34bd_b60 = **9.8053** 으로 갱신.
+
+- 스크립트: `03_Model/v5_loss/run_model41_traj_fe.py`
+
+---
+
+### v6 추가 탐색 — 비트리(Non-Tree) 모델 다양성 & 피처 경량화 (2026-04-26)
+
+#### model43: 비트리 모델 앙상블 가능성 탐색
+
+lag/rolling 피처를 제외(96종)한 362개 피처로 MLP·Ridge·ElasticNet을 GroupKFold 5-fold 평가.
+
+| 모델 | OOF MAE | pred_std(OOF) | LGBM-모델 상관 | 앙상블 판정 |
+|---|---|---|---|---|
+| MLP (512→256→128) | 9.9715 | 18.61 | **0.79** | ❌ 성능 부족 |
+| Ridge (α=100) | 9.5841 | 13.75 | 0.85 | ❌ 성능 부족 |
+| ElasticNet | 11.1906 | 6.03 | 0.80 | ❌ |
+
+**관찰**: 다양성은 압도적(MLP-LGBM 0.79 — model27 CNN 0.91보다 낮음)이나 OOF MAE 격차(LGBM 8.55 vs MLP 9.97)가 너무 커서 메타 가중치가 0에 수렴. MLP 실행 중 메모리 스와핑(Fold 2: 9640초)으로 학습 불완전 가능성도 있으나 성능 개선 여지 불충분. model27 교훈(다양성 있어도 OOF-test 분포 불일치 → 배율 폭등) 적용하여 앙상블 시도 중단.
+
+**최종 판정**: ❌ 비트리 모델 앙상블 방향 종결.
 
 ---
 
@@ -294,13 +384,13 @@ Smart-Warehouse-Delay-Prediction/
 pip install -r requirements.txt
 
 # 최종 모델 학습 (model34, ~30분)
-python src/run_model34_loss_opt.py
+python 03_Model/v5_loss/run_model34_loss_opt.py
 
 # 최종 블렌드 제출 파일 생성
-python src/blend_m33_m34.py
+python 04_Submit/blends/blend_m33_m34.py
 
 # v6 실험 (궤적 형상 피처)
-python src/run_model41_traj_fe.py
+python 03_Model/v5_loss/run_model41_traj_fe.py
 ```
 
 > `data/` 디렉토리에 `train.csv`, `test.csv`, `layout_info.csv`, `sample_submission.csv` 배치 필요 (`.gitignore`로 제외됨)

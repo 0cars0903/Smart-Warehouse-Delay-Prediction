@@ -40,23 +40,26 @@ Thumbs.db
 docs/*_ckpt/
 catboost_info/
 
-# docs 내 바이너리/임시 파일
+# docs 내 바이너리/임시 파일 (재생성 가능)
 docs/*.pkl
 docs/*.feather
 docs/*.npz
 docs/_v4_*
 docs/meta_inputs*
 
-# Temporary analysis outputs
+# 빈 디렉터리 (이전 구조 잔여물 — sandbox에서 rmdir 불가)
 eda_outputs/
-project_ratio_convergence.md
-layout_info_analysis_report.md
+notebooks/
+src/
+
+# Submissions: 498MB 누적, GitHub 미업로드
+submissions/
 
 # Misc
 *.log
 .env
 
-# 내부 작업 파일
+# 내부 작업 파일 (Cowork/Claude 전용, GitHub 미업로드)
 CLAUDE.md
-docs/COWORK_GUIDELINES.md
-docs/github_upload_checklist.md
+00_Guide/COWORK_GUIDELINES.md
+00_Guide/github_upload_checklist.md
